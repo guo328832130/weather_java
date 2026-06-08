@@ -654,7 +654,7 @@
         '<td>' + (p.trainingSubject || '--') + '</td>' +
         '<td>' + (p.trainingLocation || '--') + '</td>' +
         '<td><span class="badge badge-success">' + (p.courseCount || 0) + ' 门</span></td>' +
-        '<td>' + statusToggle({status: p.status}) + '</td>' +
+        '<td>' + statusBadge(p.status) + '</td>' +
         '<td>' + (p.createdAt || '--') + '</td>' +
         '<td>' + productActions(p) + '</td></tr>';
     }).join("");
@@ -703,10 +703,9 @@
 
   /* ── 共享组件函数 ───────────────────────── */
 
-  function statusToggle(c) {
-    var checked = c.status === "active" ? " checked" : "";
-    return '<label class="toggle-switch"><input type="checkbox" ' + checked + '><span class="toggle-slider"></span></label>' +
-      '<span style="margin-left:6px;font-size:12px;color:' + (c.status === "active" ? "#52c41a" : "#999") + ';">' + (c.status === "active" ? "已上架" : "已下架") + '</span>';
+  function statusBadge(status) {
+    var isPublished = status === "published";
+    return '<span class="badge ' + (isPublished ? 'badge-success' : 'badge-secondary') + '">' + (isPublished ? '已发布' : '未发布') + '</span>';
   }
 
   window._viewProduct = function (id) {
@@ -721,7 +720,7 @@
         '<div class="info-row"><span class="info-label">培训主题</span><span class="info-value">' + p.trainingSubject + '</span></div>' +
         '<div class="info-row"><span class="info-label">培训地点</span><span class="info-value">' + p.trainingLocation + '</span></div>' +
         '<div class="info-row"><span class="info-label">课程数</span><span class="info-value"><span class="badge badge-success">' + p.courseCount + ' 门</span></span></div>' +
-        '<div class="info-row"><span class="info-label">产品状态</span><span class="info-value"><span class="badge ' + (p.status === 'active' ? 'badge-success' : 'badge-secondary') + '">' + (p.status === 'active' ? '已上架' : '已下架') + '</span></span></div>' +
+        '<div class="info-row"><span class="info-label">产品状态</span><span class="info-value"><span class="badge ' + (p.status === 'published' ? 'badge-success' : 'badge-secondary') + '">' + (p.status === 'published' ? '已发布' : '未发布') + '</span></span></div>' +
         '<div class="info-row"><span class="info-label">创建时间</span><span class="info-value">' + p.createdAt + '</span></div>' +
         '<div class="info-row"><span class="info-label">产品描述</span><span class="info-value">' + (p.description || '无') + '</span></div>' +
         '<div style="text-align:right;margin-top:16px;"><button class="btn btn-outline btn-sm" onclick="document.getElementById(\'productModal\').classList.remove(\'show\')">关闭</button></div>';

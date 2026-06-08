@@ -1,0 +1,28 @@
+# Maven
+target/
+*.jar
+*.war
+!src/main/resources/static/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# H2 database data (local)
+data/
+
+# Maven wrapper (downloaded)
+.mvn/
+mvnw
+mvnw.cmd

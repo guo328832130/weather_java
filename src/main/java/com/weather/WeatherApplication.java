@@ -32,5 +32,12 @@ public class WeatherApplication {
         System.out.println("  H2 控制台: " + url + "/h2-console");
         System.out.println("========================================");
         System.out.println();
+
+        // 自动打开浏览器
+        try {
+            java.awt.Desktop.getDesktop().browse(java.net.URI.create(url));
+        } catch (Exception e) {
+            System.out.println("自动打开浏览器失败: " + e.getMessage());
+        }
     }
 }

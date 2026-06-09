@@ -2,10 +2,10 @@
  *  管理后台 SPA — 侧边栏 + 顶部导航布局
  * ═══════════════════════════════════════════════ */
 * { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     background: #f0f2f5;
-    min-height: 100vh;
     display: flex;
     overflow: hidden;
 }
@@ -86,7 +86,7 @@ body {
 .topbar-right a:hover { text-decoration: underline; }
 
 /* ── 内容区 ─────────────────────────── */
-.main-content { flex: 1; padding: 20px; overflow-y: auto; }
+.main-content { flex: 1; min-height: 0; padding: 20px; overflow-y: auto; }
 
 /* ── 卡片 ───────────────────────────── */
 .card {
@@ -186,6 +186,26 @@ table th { background: #fafafa; font-weight: 600; color: #374151; white-space: n
 table td { color: #4b5563; }
 table tbody tr:hover { background: #f5f7fa; }
 
+/* ── 单元格文本截断 + hover 提示 ─────── */
+.cell-truncate {
+    display: block; max-width: 160px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    cursor: default;
+}
+.cell-name { max-width: 140px; }
+.cell-subject { max-width: 120px; }
+.cell-location { max-width: 90px; }
+.cell-target { max-width: 200px; }
+.cell-target .cell-truncate { display: flex; flex-wrap: nowrap; overflow: hidden; gap: 4px; }
+.cell-target .cell-truncate .target-tag {
+    white-space: nowrap; flex-shrink: 0;
+}
+.cell-target .cell-truncate .target-more {
+    white-space: nowrap; flex-shrink: 0;
+    display: inline-block; background: #f0f5ff; color: #1890ff;
+    padding: 2px 8px; border-radius: 4px; font-size: 11px;
+}
+
 .course-info { display: flex; align-items: center; gap: 10px; }
 .course-info img { width: 48px; height: 36px; border-radius: 4px; object-fit: cover; background: #f0f0f0; }
 .course-info .ci-name { font-weight: 500; color: #1f2937; }
@@ -267,6 +287,24 @@ input:checked + .toggle-slider::before { transform: translateX(22px); }
 .modal-box .info-label { color: #9ca3af; min-width: 80px; }
 .modal-box .info-value { color: #1f2937; flex: 1; }
 
+/* ── 确认删除弹窗 ───────────────────── */
+.modal-confirm { min-width: 380px; max-width: 440px; text-align: center; padding: 32px 28px 24px; }
+.modal-confirm .confirm-icon { font-size: 48px; margin-bottom: 12px; }
+
+/* ── 危险按钮 ───────────────────────── */
+.btn-danger {
+    background: #ff4d4f; color: #fff; border: 1px solid #ff4d4f;
+    padding: 8px 18px; border-radius: 6px; font-size: 14px; cursor: pointer;
+    transition: all .2s;
+}
+.btn-danger:hover { background: #ff7875; border-color: #ff7875; }
+.btn-danger:active { background: #d9363e; border-color: #d9363e; }
+.btn-danger:disabled { background: #ffa39e; border-color: #ffa39e; cursor: not-allowed; }
+
+/* ── 链接按钮-危险色 ────────────────── */
+.btn-link-danger { color: #ff4d4f !important; }
+.btn-link-danger:hover { color: #ff7875 !important; background: rgba(255,77,79,.06); }
+
 /* ── 登录/注册页 ────────────────────── */
 .auth-page { display: flex; }
 .auth-page .sidebar { display: none; }
@@ -337,4 +375,216 @@ input:checked + .toggle-slider::before { transform: translateX(22px); }
     .weather-grid { grid-template-columns: 1fr; }
     .auth-card { width: 100%; margin: 20px; }
     .modal-box { min-width: auto; width: 90%; }
+}
+
+/* ── 新增产品表单 ──────────────────── */
+.page-form-header { margin-bottom: 16px; }
+.page-form-header .btn { font-size: 13px; }
+
+.form-section { margin-bottom: 20px; }
+.form-section-title {
+    font-size: 14px; font-weight: 600; color: #1f2937;
+    padding-bottom: 10px; margin-bottom: 16px;
+    border-bottom: 2px solid #1890ff;
+    display: flex; align-items: center; gap: 6px;
+}
+.form-section-title::before { content: ''; display: inline-block; width: 4px; height: 16px; background: #1890ff; border-radius: 2px; }
+
+.form-row { display: flex; gap: 16px; }
+.form-row-2 .form-group { flex: 1; }
+.form-row-3 .form-group { flex: 1; }
+
+.label-optional { font-weight: 400; color: #9ca3af; font-size: 12px; }
+.required { color: #ff4d4f; }
+
+.image-upload-area {
+    border: 2px dashed #d9d9d9; border-radius: 8px;
+    padding: 24px; text-align: center;
+    transition: border-color .2s; cursor: pointer;
+    background: #fafafa;
+    min-height: 140px; display: flex; align-items: center; justify-content: center;
+}
+.image-upload-area:hover { border-color: #1890ff; background: #f0f5ff; }
+.image-upload-placeholder { pointer-events: none; }
+
+/* ── 图片预览网格 ──────────────────── */
+.image-preview-grid {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    justify-content: center; align-items: flex-start;
+    width: 100%;
+}
+.preview-box {
+    position: relative; width: 160px; height: 120px;
+    border-radius: 6px; overflow: hidden; border: 1px solid #e8e8e8;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    flex-shrink: 0;
+}
+.preview-box img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.preview-remove {
+    position: absolute; top: 4px; right: 4px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(0,0,0,.5); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: bold; cursor: pointer;
+    line-height: 1; transition: background .2s;
+}
+.preview-remove:hover { background: #ff4d4f; }
+
+/* ── 上传提示 ──────────────────────── */
+.upload-tip {
+    margin-top: 8px; padding: 8px 12px;
+    background: #fffbe6; border: 1px solid #ffe58f;
+    border-radius: 6px; font-size: 12px; color: #ad8b00;
+    line-height: 1.6;
+}
+
+/* ── 富文本编辑器 ──────────────────── */
+.richtext-editor {
+    border: 1px solid #d9d9d9; border-radius: 6px;
+    overflow: hidden; transition: border-color .2s;
+}
+.richtext-editor:focus-within { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,.1); }
+.richtext-toolbar {
+    display: flex; align-items: center; gap: 2px;
+    padding: 6px 8px; background: #fafafa;
+    border-bottom: 1px solid #e8e8e8; flex-wrap: wrap;
+}
+.richtext-toolbar button {
+    width: 30px; height: 28px; border: none; border-radius: 4px;
+    background: transparent; cursor: pointer; font-size: 14px;
+    color: #555; display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+}
+.richtext-toolbar button:hover { background: #e6f0ff; color: #1890ff; }
+.richtext-toolbar button.active { background: #1890ff; color: #fff; }
+.toolbar-sep {
+    width: 1px; height: 18px; background: #d9d9d9; margin: 0 4px;
+}
+.richtext-content {
+    min-height: 120px; padding: 10px 12px; font-size: 14px;
+    color: #374151; line-height: 1.7; outline: none;
+    word-break: break-word;
+}
+.richtext-content:empty::before {
+    content: attr(placeholder); color: #bfbfbf; pointer-events: none;
+}
+.richtext-content h3 { font-size: 16px; margin: 0 0 8px; }
+.richtext-content ul, .richtext-content ol { padding-left: 20px; margin: 6px 0; }
+.richtext-content li { margin: 2px 0; }
+.richtext-content p { margin: 0 0 6px; }
+.richtext-content p:last-child { margin-bottom: 0; }
+
+.switch-label { display: inline-flex; align-items: center; cursor: pointer; }
+
+/* ── 单选/多选组 ────────────────────── */
+.radio-group, .checkbox-group {
+    display: flex; flex-wrap: wrap; gap: 4px;
+    padding-top: 6px;
+}
+.radio-option, .checkbox-option {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border: 1px solid #d9d9d9; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 400;
+    transition: all .2s; background: #fff;
+    user-select: none; margin: 0;
+}
+.radio-option:hover, .checkbox-option:hover {
+    border-color: #1890ff; color: #1890ff;
+}
+.radio-option:has(input:checked), .checkbox-option:has(input:checked) {
+    border-color: #1890ff; background: #e6f0ff; color: #1890ff;
+}
+.radio-option input[type="radio"], .checkbox-option input[type="checkbox"] {
+    display: none;
+}
+.radio-dot {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid #d9d9d9; transition: all .2s;
+    display: flex; align-items: center; justify-content: center;
+}
+.radio-option:has(input:checked) .radio-dot {
+    border-color: #1890ff; background: #1890ff;
+    box-shadow: inset 0 0 0 2px #fff;
+}
+.checkbox-mark {
+    width: 14px; height: 14px; border-radius: 3px;
+    border: 2px solid #d9d9d9; transition: all .2s;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: transparent;
+}
+.checkbox-option:has(input:checked) .checkbox-mark {
+    border-color: #1890ff; background: #1890ff;
+    color: #fff;
+}
+.checkbox-option:has(input:checked) .checkbox-mark::after {
+    content: '✓';
+}
+
+/* textarea 通用样式 */
+textarea {
+    width: 100%; padding: 9px 12px; border: 1px solid #d9d9d9;
+    border-radius: 6px; font-size: 14px; resize: vertical;
+    outline: none; font-family: inherit;
+}
+textarea:focus { border-color: #1890ff !important; box-shadow: 0 0 0 2px rgba(24,144,255,.1); }
+
+/* 移除旧的单独 textarea focus 规则，保留后兼容 */
+/* textarea:focus 已合并到上方 */
+
+/* ── 弹窗宽屏 ──────────────────────── */
+.modal-box-wide { min-width: 640px; max-width: 760px; }
+
+/* ── 多选下拉 ──────────────────────── */
+.multi-select { position: relative; user-select: none; }
+.multi-select-trigger {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+    min-height: 38px; padding: 4px 30px 4px 8px;
+    border: 1px solid #d9d9d9; border-radius: 6px;
+    background: #fff; cursor: pointer;
+    transition: border-color .2s; position: relative;
+}
+.multi-select-trigger:hover { border-color: #1890ff; }
+.multi-select-placeholder { color: #bfbfbf; font-size: 14px; }
+.multi-select-arrow {
+    position: absolute; right: 10px; top: 50%;
+    transform: translateY(-50%); color: #bfbfbf; font-size: 12px;
+    pointer-events: none;
+}
+.multi-select-tag {
+    display: inline-flex; align-items: center; gap: 2px;
+    padding: 2px 6px; background: #e6f0ff; color: #2b6de8;
+    border-radius: 4px; font-size: 12px; white-space: nowrap;
+}
+.multi-select-tag-remove {
+    cursor: pointer; font-weight: bold; margin-left: 2px;
+    color: #2b6de8; opacity: .6;
+}
+.multi-select-tag-remove:hover { opacity: 1; color: #ff4d4f; }
+.multi-select-dropdown {
+    display: none; position: absolute; top: 100%; left: 0; right: 0;
+    background: #fff; border: 1px solid #d9d9d9; border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.12); z-index: 250;
+    margin-top: 4px; padding: 4px 0; max-height: 180px; overflow-y: auto;
+}
+.multi-select-dropdown.show { display: block; }
+.multi-select-option {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px; cursor: pointer; font-size: 14px;
+    transition: background .15s; margin: 0;
+}
+.multi-select-option:hover { background: #f5f5f5; }
+.multi-select-option input[type="checkbox"] {
+    width: 16px; height: 16px; accent-color: #1890ff; cursor: pointer;
+}
+.multi-select-option span { color: #374151; }
+
+/* ── 省市区联动 ────────────────────── */
+.cascade-row { display: flex; gap: 8px; }
+.cascade-row select { flex: 1; }
+
+/* ── 字符计数 ──────────────────────── */
+.char-counter {
+    text-align: right; font-size: 12px; color: #9ca3af; margin-top: 4px;
 }

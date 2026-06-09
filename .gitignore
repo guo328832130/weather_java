@@ -22,6 +22,9 @@ Thumbs.db
 # H2 database data (local)
 data/
 
+# Uploaded files (local)
+uploads/
+
 # Maven wrapper (downloaded)
 .mvn/
 mvnw

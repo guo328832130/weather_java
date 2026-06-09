@@ -637,8 +637,59 @@
     // 初始隐藏额外行
     document.getElementById("filterExtraRow").style.display = "none";
     // 导出按钮
-    document.getElementById("btnExportProd").onclick = function () {
-      alert("导出功能开发中...");
+    document.getElementById("btnExportProd").onclick = async function () {
+      var btn = document.getElementById("btnExportProd");
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> 导出中...';
+
+      try {
+        var params = getFilterParams();
+        var headers = { "Content-Type": "application/json" };
+        var token = localStorage.getItem("token");
+        if (token) headers["Authorization"] = "Bearer " + token;
+
+        var resp = await fetch("/api/products/export", {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(params)
+        });
+
+        if (!resp.ok) {
+          throw new Error("导出失败 (" + resp.status + ")");
+        }
+
+        // 从 Content-Disposition 头提取文件名，优先使用 filename*
+        var disposition = resp.headers.get("Content-Disposition");
+        var filename = "产品导出.xlsx";
+        if (disposition) {
+          // 优先匹配 filename*=UTF-8''xxx
+          var starMatch = disposition.match(/filename\*=UTF-8''([^;\s]+)/);
+          if (starMatch) {
+            filename = decodeURIComponent(starMatch[1]);
+          } else {
+            // 回退到 filename="xxx" 或 filename=xxx
+            var plainMatch = disposition.match(/filename\s*=\s*"?([^";\s]+)"?/);
+            if (plainMatch) {
+              filename = decodeURIComponent(plainMatch[1]);
+            }
+          }
+        }
+
+        var blob = await resp.blob();
+        var url = window.URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        alert("导出失败: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '📤 导出';
+      }
     };
     // 新建产品按钮
     document.getElementById("btnNewProd").onclick = function () {

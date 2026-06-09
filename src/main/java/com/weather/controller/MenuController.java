@@ -16,9 +16,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -168,7 +174,118 @@ public class MenuController {
     @PostMapping("/products/search")
     public ApiResponse searchProducts(@RequestBody ProductFilterRequest filter) {
 
-        Specification<Product> spec = (root, query, cb) -> {
+        Specification<Product> spec = buildProductSpec(filter);
+
+        List<Product> all = productRepository.findAll(spec, Sort.by(Sort.Direction.DESC, "createdAt"));
+        List<Map<String, Object>> productMaps = new ArrayList<>();
+        for (Product p : all) {
+            productMaps.add(toProductMap(p));
+        }
+        return ApiResponse.ok(Map.of("products", productMaps, "total", productMaps.size()));
+    }
+
+    // ── 产品导出 POST /api/products/export（Excel）────
+    @PostMapping("/products/export")
+    public ResponseEntity<byte[]> exportProducts(@RequestBody ProductFilterRequest filter) {
+        Specification<Product> spec = buildProductSpec(filter);
+        List<Product> products = productRepository.findAll(spec, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("产品列表");
+
+            // 表头样式
+            CellStyle headerStyle = workbook.createCellStyle();
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerFont.setFontHeightInPoints((short) 12);
+            headerStyle.setFont(headerFont);
+            headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            headerStyle.setBorderBottom(BorderStyle.THIN);
+            headerStyle.setBorderTop(BorderStyle.THIN);
+            headerStyle.setBorderLeft(BorderStyle.THIN);
+            headerStyle.setBorderRight(BorderStyle.THIN);
+            headerStyle.setAlignment(HorizontalAlignment.CENTER);
+            headerStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+
+            // 数据样式
+            CellStyle dataStyle = workbook.createCellStyle();
+            dataStyle.setBorderBottom(BorderStyle.THIN);
+            dataStyle.setBorderTop(BorderStyle.THIN);
+            dataStyle.setBorderLeft(BorderStyle.THIN);
+            dataStyle.setBorderRight(BorderStyle.THIN);
+            dataStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+            dataStyle.setWrapText(true);
+
+            // 表头
+            String[] headers = {"序号", "产品编号", "产品名称", "培训类型", "培训模式",
+                    "培训主题", "培训地点", "培训对象", "适用学段", "适用学科",
+                    "适用岗位", "课程学时", "产品状态", "创建时间", "培训目标", "产品描述"};
+
+            Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+
+            // 数据行
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            for (int i = 0; i < products.size(); i++) {
+                Product p = products.get(i);
+                Row row = sheet.createRow(i + 1);
+
+                setCell(row, 0, i + 1, dataStyle);
+                setCell(row, 1, p.getProductCode(), dataStyle);
+                setCell(row, 2, p.getName(), dataStyle);
+                setCell(row, 3, p.getTrainingType(), dataStyle);
+                setCell(row, 4, p.getTrainingMode(), dataStyle);
+                setCell(row, 5, p.getTrainingSubject(), dataStyle);
+                setCell(row, 6, p.getTrainingLocation(), dataStyle);
+                setCell(row, 7, p.getTrainingTarget(), dataStyle);
+                setCell(row, 8, p.getGrade(), dataStyle);
+                setCell(row, 9, p.getSubject(), dataStyle);
+                setCell(row, 10, p.getPosition(), dataStyle);
+                setCell(row, 11, p.getCourseCount(), dataStyle);
+                setCell(row, 12, "published".equals(p.getStatus()) ? "已发布" : "未发布", dataStyle);
+                setCell(row, 13, p.getCreatedAt() != null ? p.getCreatedAt().format(fmt) : "", dataStyle);
+                setCell(row, 14, p.getTrainingObjective(), dataStyle);
+                setCell(row, 15, p.getDescription(), dataStyle);
+            }
+
+            // 自动列宽（近似）
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+                // 限制最大宽度避免过宽
+                int width = sheet.getColumnWidth(i);
+                if (width > 15000) sheet.setColumnWidth(i, 15000);
+                if (width < 3000) sheet.setColumnWidth(i, 3000);
+            }
+
+            // 冻结首行
+            sheet.createFreezePane(0, 1);
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            workbook.write(baos);
+
+            String filename = "产品导出_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")) + ".xlsx";
+            String encodedFilename = URLEncoder.encode(filename, StandardCharsets.UTF_8)
+                    .replaceAll("\\+", "%20");
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename*=UTF-8''" + encodedFilename)
+                    .body(baos.toByteArray());
+
+        } catch (IOException e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /** 根据筛选条件构建 JPA Specification */
+    private Specification<Product> buildProductSpec(ProductFilterRequest filter) {
+        return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
             String name = filter.getName();
@@ -210,13 +327,19 @@ public class MenuController {
 
             return cb.and(predicates.toArray(new Predicate[0]));
         };
+    }
 
-        List<Product> all = productRepository.findAll(spec, Sort.by(Sort.Direction.DESC, "createdAt"));
-        List<Map<String, Object>> productMaps = new ArrayList<>();
-        for (Product p : all) {
-            productMaps.add(toProductMap(p));
-        }
-        return ApiResponse.ok(Map.of("products", productMaps, "total", productMaps.size()));
+    /** 便捷设置单元格值 */
+    private void setCell(Row row, int col, String value, CellStyle style) {
+        Cell cell = row.createCell(col);
+        cell.setCellValue(value != null ? value : "");
+        cell.setCellStyle(style);
+    }
+
+    private void setCell(Row row, int col, int value, CellStyle style) {
+        Cell cell = row.createCell(col);
+        cell.setCellValue(value);
+        cell.setCellStyle(style);
     }
 
     // ── 新增产品 POST /api/products ──────────────────

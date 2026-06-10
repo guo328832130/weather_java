@@ -815,7 +815,7 @@
   function productActions(p) {
     return '<div class="btn-group" style="gap:4px;">' +
       '<button class="btn-link" onclick="window._editProduct(' + p.id + ')">编辑</button>' +
-      '<button class="btn-link">复制</button>' +
+      '<button class="btn-link" onclick="window._copyProduct(' + p.id + ')">复制</button>' +
       '<button class="btn-link">新建课程</button>' +
       '<button class="btn-link btn-link-danger" onclick="window._confirmDelete(' + p.id + ', \'' + (p.name || '').replace(/'/g, "\\'") + '\')">删除</button>' +
       '</div>';
@@ -831,6 +831,13 @@
     pag.innerHTML = html;
   }
   window._productPage = function (p) { pageState.products.page = p; renderProductTable(); };
+
+  /* ── 复制产品（跳转到新增页面并回显数据）──── */
+  window._copyProduct = function (id) {
+    localStorage.setItem("_copyProductId", id);
+    navigate("#product-new");
+    render("#product-new");
+  };
 
   /* ── 编辑产品（新窗口打开）──────────────── */
   window._editProduct = function (id) {
@@ -1377,11 +1384,95 @@
     var msgEl = ui.msgEl;
     var uploadedUrls = ui.uploadedUrls;
 
+    // 检测复制模式
+    var copyFromId = localStorage.getItem("_copyProductId");
+
     // 修改标题
     var titleEl = document.querySelector("h3");
-    if (titleEl) titleEl.textContent = "📦 新增产品";
+    if (titleEl) titleEl.textContent = copyFromId ? "📋 复制产品" : "📦 新增产品";
     var btnSave = document.getElementById("btnSaveProduct");
-    if (btnSave) btnSave.innerHTML = "💾 保存";
+    if (btnSave) btnSave.innerHTML = copyFromId ? "💾 保存为新副本" : "💾 保存";
+
+    // 复制模式：加载原产品数据并回显
+    if (copyFromId) {
+      localStorage.removeItem("_copyProductId");
+      api.products().then(function (r) {
+        if (r.code !== 200) return;
+        var p = (r.data.products || []).find(function (x) { return x.id === parseInt(copyFromId); });
+        if (!p) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">原产品不存在</div>'; return; }
+
+        // 产品编号 — 复制模式清空，提交时自动生成新编号
+        var codeEl = document.getElementById("npProductCode");
+        if (codeEl) codeEl.value = "";
+
+        // 产品名称 — 自动加"副本"后缀
+        var nameEl = document.getElementById("npName");
+        if (nameEl) nameEl.value = (p.name || "") + " - 副本";
+
+        // 图片URL
+        var imageEl = document.getElementById("npImage");
+        if (imageEl && p.images) { imageEl.value = p.images; imageEl.dispatchEvent(new Event("input")); }
+
+        // 培训类型（单选）
+        if (p.trainingType) {
+          var radio = document.querySelector('input[name="npTrainingType"][value="' + p.trainingType + '"]');
+          if (radio) radio.checked = true;
+        }
+
+        // 培训模式（多选）
+        if (p.trainingMode) {
+          p.trainingMode.split("、").forEach(function (v) {
+            var cb = document.querySelector('#npTrainingMode input[value="' + v + '"]');
+            if (cb) cb.checked = true;
+          });
+        }
+
+        // 多选下拉回显
+        function fillMulti(id, values) {
+          if (!values) return;
+          values.split("、").forEach(function (v) {
+            var cb = document.querySelector('#' + id + ' input[value="' + v + '"]');
+            if (cb) cb.checked = true;
+          });
+          var container = document.getElementById(id);
+          if (container) updateMultiSelectDisplay(container);
+        }
+        fillMulti("npPosition", p.position);
+        fillMulti("npGrade", p.grade);
+        fillMulti("npSubject", p.subject);
+        fillMulti("npTrainingSubject", p.trainingSubject);
+
+        // 培训地点（省+市联动）
+        if (p.trainingLocation) {
+          var parts = p.trainingLocation.split(" ");
+          if (parts.length >= 2) {
+            var provSel = document.getElementById("npProvince");
+            var citySel = document.getElementById("npCity");
+            if (provSel) {
+              provSel.value = parts[0];
+              provSel.dispatchEvent(new Event("change"));
+              if (citySel) {
+                setTimeout(function () { citySel.value = parts[1]; }, 50);
+              }
+            }
+          }
+        }
+
+        // 课程学时
+        var hoursEl = document.getElementById("npCourseHours");
+        if (hoursEl && p.courseCount) hoursEl.value = p.courseCount;
+
+        // 培训目标 + 字符计数
+        var objectiveEl = document.getElementById("npTrainingObjective");
+        if (objectiveEl) objectiveEl.value = p.trainingObjective || "";
+        var countEl = document.getElementById("npObjectiveCount");
+        if (countEl) countEl.textContent = (p.trainingObjective || "").length;
+
+        // 培训内容（富文本）
+        var descEl = document.getElementById("npDescription");
+        if (descEl && p.description) descEl.innerHTML = p.description;
+      });
+    }
 
     // 表单提交 — POST 新增
     if (form) {

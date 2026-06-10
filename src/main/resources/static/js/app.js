@@ -814,7 +814,7 @@
 
   function productActions(p) {
     return '<div class="btn-group" style="gap:4px;">' +
-      '<button class="btn-link" onclick="navigate(\'#product-edit/' + p.id + '\'); render(\'#product-edit\', {id:' + p.id + '})">编辑</button>' +
+      '<button class="btn-link" onclick="window._editProduct(' + p.id + ')">编辑</button>' +
       '<button class="btn-link">复制</button>' +
       '<button class="btn-link">新建课程</button>' +
       '<button class="btn-link btn-link-danger" onclick="window._confirmDelete(' + p.id + ', \'' + (p.name || '').replace(/'/g, "\\'") + '\')">删除</button>' +
@@ -831,6 +831,17 @@
     pag.innerHTML = html;
   }
   window._productPage = function (p) { pageState.products.page = p; renderProductTable(); };
+
+  /* ── 编辑产品（新窗口打开）──────────────── */
+  window._editProduct = function (id) {
+    var url = '/index.html#product-edit/' + id;
+    var win = window.open(url, '_blank');
+    // 如果浏览器拦截了弹窗，在当前窗口导航
+    if (!win || win.closed || typeof win.closed === 'undefined') {
+      navigate('#product-edit/' + id);
+      render('#product-edit/' + id);
+    }
+  };
 
   /* ── 删除确认弹窗 ───────────────────────── */
   window._confirmDelete = function (id, name) {
@@ -1121,7 +1132,11 @@
       '</div></div>';
   };
 
-  _after["#product-new"] = function () {
+  /**
+   * 初始化产品表单 UI 组件（多选、富文本、图片上传、省市区联动等）
+   * 供新增和编辑页面共用，返回表单状态对象
+   */
+  function initProductFormUI() {
     var form = document.getElementById("newProductForm");
     var btnCancel = document.getElementById("btnCancelProduct");
     var btnBack = document.getElementById("btnBackToProducts");
@@ -1131,7 +1146,12 @@
     var previewGrid = document.getElementById("imagePreviewGrid");
     var placeholder = document.getElementById("imagePlaceholder");
     var msgEl = document.getElementById("npFormMsg");
-    var uploadedUrls = [];
+
+    // 已上传的图片 URL（存储在 window 上供编辑回显使用）
+    if (!window._pf) window._pf = {};
+    var state = window._pf;
+    state.uploadedUrls = state.uploadedUrls || [];
+    var uploadedUrls = state.uploadedUrls;
 
     // 渲染预览网格
     function renderPreviews() {
@@ -1144,15 +1164,13 @@
         manualVal.split(/[、,\s]+/).filter(Boolean).forEach(function(u) { allUrls.push(u); });
       }
 
-      // 显示/隐藏占位符
       if (allUrls.length === 0) {
-        previewGrid.style.display = "none";
-        previewGrid.innerHTML = "";
+        if (previewGrid) { previewGrid.style.display = "none"; previewGrid.innerHTML = ""; }
         if (placeholder) placeholder.style.display = "block";
       } else {
-        previewGrid.style.display = "flex";
+        if (previewGrid) previewGrid.style.display = "flex";
         if (placeholder) placeholder.style.display = "none";
-        previewGrid.innerHTML = "";
+        if (previewGrid) previewGrid.innerHTML = "";
 
         allUrls.forEach(function(url, idx) {
           var box = document.createElement("div");
@@ -1190,18 +1208,20 @@
 
           box.appendChild(img);
           box.appendChild(removeBtn);
-          previewGrid.appendChild(box);
+          if (previewGrid) previewGrid.appendChild(box);
         });
       }
 
-      // 更新上传区域提示
       var remaining = 3 - uploadedUrls.length;
       if (uploadArea && remaining > 0 && uploadedUrls.length > 0) {
         uploadArea.setAttribute("title", "还可上传 " + remaining + " 张");
       }
     }
 
-    // 省市区联动数据
+    // 保存 renderPreviews 以便外部调用
+    state.renderPreviews = renderPreviews;
+
+    // 省市区数据
     var cityData = {
       "北京":["北京"],"上海":["上海"],"天津":["天津"],"重庆":["重庆"],
       "广东":["广州","深圳","珠海","东莞","佛山","惠州","中山","汕头","江门","湛江"],
@@ -1236,10 +1256,10 @@
       "澳门":["澳门"]
     };
 
-    // 初始化省份下拉
+    // 初始化省份下拉（避免重复添加）
     var provSel = document.getElementById("npProvince");
     var citySel = document.getElementById("npCity");
-    if (provSel) {
+    if (provSel && provSel.options.length <= 1) {
       Object.keys(cityData).forEach(function(p) {
         var opt = document.createElement("option");
         opt.value = p; opt.textContent = p;
@@ -1262,7 +1282,7 @@
       });
     }
 
-    // 初始化多选下拉：岗位、学段、学科、课程主题
+    // 初始化多选下拉
     initMultiSelect("npPosition");
     initMultiSelect("npGrade");
     initMultiSelect("npSubject");
@@ -1274,7 +1294,6 @@
     // 点击上传区域 → 打开文件选择器
     if (uploadArea && fileInput) {
       uploadArea.addEventListener("click", function (e) {
-        // 如果点击的是预览图片或移除按钮，不触发上传
         if (e.target.closest(".preview-box")) return;
         if (uploadedUrls.length >= 3) {
           if (msgEl) msgEl.innerHTML = '<div class="alert alert-warning">最多上传3张图片，请先移除已有图片</div>';
@@ -1287,31 +1306,22 @@
       fileInput.addEventListener("change", async function () {
         var files = Array.from(this.files);
         var remaining = 3 - uploadedUrls.length;
-        if (files.length > remaining) {
-          files = files.slice(0, remaining);
-        }
-
+        if (files.length > remaining) files = files.slice(0, remaining);
         if (files.length === 0) return;
 
-        // 显示上传中状态
-        if (msgEl) msgEl.innerHTML = '<div class="alert" style="background:#fffbe6;color:#faad14;border:1px solid #ffe58f;">⏳ 正在上传 ' + files.length + ' 张图片...</div>';
+        if (msgEl) msgEl.innerHTML = '<div class="alert" style="background:#fffbe6;color:#faad14;border:1px solid #ffe58f;"> 正在上传 ' + files.length + ' 张图片...</div>';
 
         var hasError = false;
         for (var i = 0; i < files.length; i++) {
           var f = files[i];
           if (!f.type.startsWith("image/")) continue;
-
           var formData = new FormData();
           formData.append("file", f);
           try {
-            var headers = {};
+            var hdrs = {};
             var token = localStorage.getItem("token");
-            if (token) headers["Authorization"] = "Bearer " + token;
-            var resp = await fetch("/api/upload", {
-              method: "POST",
-              headers: headers,
-              body: formData
-            });
+            if (token) hdrs["Authorization"] = "Bearer " + token;
+            var resp = await fetch("/api/upload", { method: "POST", headers: hdrs, body: formData });
             var r = await resp.json();
             if (r.code === 200 && r.data && r.data.url) {
               uploadedUrls.push(r.data.url);
@@ -1324,13 +1334,8 @@
             if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">上传失败，请检查网络连接</div>';
           }
         }
-
-        // 立即渲染预览
         renderPreviews();
-
-        // 清理 file input（允许重复选同一文件）
-        fileInput.value = "";
-
+        this.value = "";
         if (!hasError && uploadedUrls.length > 0) {
           if (msgEl) msgEl.innerHTML = '<div class="alert alert-success">✅ 已上传 ' + uploadedUrls.length + ' 张图片</div>';
         }
@@ -1339,9 +1344,7 @@
 
     // 手动输入URL → 更新预览
     if (imageInput) {
-      imageInput.addEventListener("input", function () {
-        renderPreviews();
-      });
+      imageInput.addEventListener("input", function () { renderPreviews(); });
     }
 
     // 取消 / 返回按钮
@@ -1365,22 +1368,33 @@
       });
     }
 
-    // 表单提交
+    return { form: form, msgEl: msgEl, uploadedUrls: uploadedUrls, renderPreviews: renderPreviews };
+  }
+
+  _after["#product-new"] = function () {
+    var ui = initProductFormUI();
+    var form = ui.form;
+    var msgEl = ui.msgEl;
+    var uploadedUrls = ui.uploadedUrls;
+
+    // 修改标题
+    var titleEl = document.querySelector("h3");
+    if (titleEl) titleEl.textContent = "📦 新增产品";
+    var btnSave = document.getElementById("btnSaveProduct");
+    if (btnSave) btnSave.innerHTML = "💾 保存";
+
+    // 表单提交 — POST 新增
     if (form) {
       form.onsubmit = async function (e) {
         e.preventDefault();
 
-        // ─ 自动生成产品编号 ─
         var codeEl = document.getElementById("npProductCode");
         if (codeEl && !codeEl.value.trim()) {
           var now = new Date();
           var pad = function(n) { return n < 10 ? "0" + n : "" + n; };
-          codeEl.value = "cp" + now.getFullYear() +
-            pad(now.getMonth() + 1) + pad(now.getDate()) +
-            pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());
+          codeEl.value = "cp" + now.getFullYear() + pad(now.getMonth()+1) + pad(now.getDate()) + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());
         }
 
-        // ─ 必填校验 ─
         var nameEl = document.getElementById("npName");
         var name = nameEl ? nameEl.value.trim() : "";
         if (!name) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请输入产品名称</div>'; return; }
@@ -1399,7 +1413,7 @@
         var locationVal = provinceVal + " " + cityVal;
 
         var hoursVal = parseInt(document.getElementById("npCourseHours").value) || 0;
-        if (!hoursVal || hoursVal < 1) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请输入课程学时（至少1学时）</div>'; return; }
+        if (!hoursVal || hoursVal < 1) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请输入课程学时</div>'; return; }
 
         var topicVal = getMultiSelectValues("npTrainingSubject");
         if (!topicVal) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请选择课程主题</div>'; return; }
@@ -1407,67 +1421,49 @@
         var objectiveVal = document.getElementById("npTrainingObjective").value.trim();
         if (!objectiveVal) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请输入培训目标</div>'; return; }
 
-        // 培训类型（单选）
         var trainingTypeRadio = document.querySelector('input[name="npTrainingType"]:checked');
         var trainingType = trainingTypeRadio ? trainingTypeRadio.value : "";
-        // 培训模式（多选）
         var trainingMode = getCheckboxGroupValues("npTrainingMode");
 
-        // 合并上传的图片URL和手动输入的URL
         var allImageUrls = uploadedUrls.slice();
         var manualUrl = document.getElementById("npImage").value.trim();
-        if (manualUrl) {
-          manualUrl.split(/[、,\s]+/).filter(Boolean).forEach(function(u) { allImageUrls.push(u); });
-        }
+        if (manualUrl) { manualUrl.split(/[、,\s]+/).filter(Boolean).forEach(function(u) { allImageUrls.push(u); }); }
 
         var data = {
           productCode: document.getElementById("npProductCode").value.trim(),
-          name: name,
-          images: allImageUrls.join("、"),
-          trainingType: trainingType,
-          trainingMode: trainingMode,
-          trainingSubject: topicVal,
-          trainingLocation: locationVal,
-          trainingTarget: positionVal,
-          grade: gradeVal,
-          subject: subjectVal,
-          position: positionVal,
-          courseCount: hoursVal,
-          status: "unpublished",
+          name: name, images: allImageUrls.join("、"),
+          trainingType: trainingType, trainingMode: trainingMode,
+          trainingSubject: topicVal, trainingLocation: locationVal,
+          trainingTarget: positionVal, grade: gradeVal,
+          subject: subjectVal, position: positionVal,
+          courseCount: hoursVal, status: "unpublished",
           description: document.getElementById("npDescription").innerHTML.trim(),
           trainingObjective: objectiveVal
         };
 
         var btnSave = document.getElementById("btnSaveProduct");
-        btnSave.disabled = true;
-        btnSave.innerHTML = '<span class="spinner"></span> 保存中...';
-
+        btnSave.disabled = true; btnSave.innerHTML = '<span class="spinner"></span> 保存中...';
         try {
           var r = await api.createProduct(data);
-          btnSave.disabled = false;
-          btnSave.innerHTML = "💾 保存";
+          btnSave.disabled = false; btnSave.innerHTML = "💾 保存";
           if (r.code === 200) {
             if (msgEl) msgEl.innerHTML = '<div class="alert alert-success">' + (r.message || "创建成功") + '，即将返回列表...</div>';
-            setTimeout(function () {
-              navigate("#products"); render("#products");
-            }, 800);
+            setTimeout(function () { navigate("#products"); render("#products"); }, 800);
           } else {
             if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">' + (r.message || "创建失败") + '</div>';
           }
         } catch (err) {
-          btnSave.disabled = false;
-          btnSave.innerHTML = "💾 保存";
-          if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">网络请求失败，请确认服务已启动</div>';
+          btnSave.disabled = false; btnSave.innerHTML = "💾 保存";
+          if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">网络请求失败</div>';
         }
       };
     }
   };
 
   /* ═══════════════════════════════════════════════════════
-   *  编辑产品 — 独立页面
+   *  编辑产品 — 新窗口打开，独立初始化，回显已有数据
    * ═══════════════════════════════════════════════════════ */
   routes["#product-edit"] = function () {
-    // 复用新增产品的表单 HTML
     return routes["#product-new"]();
   };
 
@@ -1475,27 +1471,24 @@
     var editId = pageState.editProductId;
     if (!editId) { navigate("#products"); render("#products"); return; }
 
-    // 复用新增产品的初始化（多选、富文本、上传……）
-    // 先调用新增产品的 after 来设置所有 UI 组件
-    _after["#product-new"]();
+    // 独立初始化表单 UI（不调用 _after["#product-new"]）
+    var ui = initProductFormUI();
+    var form = ui.form;
+    var msgEl = ui.msgEl;
 
     // 修改标题和按钮
     var titleEl = document.querySelector("h3");
     if (titleEl) titleEl.textContent = "📝 编辑产品";
-
     var btnSave = document.getElementById("btnSaveProduct");
     if (btnSave) btnSave.innerHTML = "💾 更新";
 
-    var msgEl = document.getElementById("npFormMsg");
-
-    // 加载产品数据
+    // 加载产品数据并回显
     api.products().then(function (r) {
       if (r.code !== 200) return;
       var p = (r.data.products || []).find(function (x) { return x.id === editId; });
       if (!p) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">产品不存在</div>'; return; }
 
-      // ── 回显各字段 ──
-      // 产品编号（只读）
+      // 产品编号
       var codeEl = document.getElementById("npProductCode");
       if (codeEl) codeEl.value = p.productCode || "";
 
@@ -1503,7 +1496,7 @@
       var nameEl = document.getElementById("npName");
       if (nameEl) nameEl.value = p.name || "";
 
-      // 图片URL（手动输入方式）
+      // 图片URL
       var imageEl = document.getElementById("npImage");
       if (imageEl && p.images) imageEl.value = p.images;
 
@@ -1513,7 +1506,7 @@
         if (radio) radio.checked = true;
       }
 
-      // 培训模式（多选checkbox组）
+      // 培训模式（多选）
       if (p.trainingMode) {
         p.trainingMode.split("、").forEach(function (v) {
           var cb = document.querySelector('#npTrainingMode input[value="' + v + '"]');
@@ -1521,41 +1514,32 @@
         });
       }
 
-      // 岗位、学段、课程主题（多选下拉）
-      function fillMultiSelect(id, values) {
+      // 多选下拉回显
+      function fillMulti(id, values) {
         if (!values) return;
         values.split("、").forEach(function (v) {
           var cb = document.querySelector('#' + id + ' input[value="' + v + '"]');
           if (cb) cb.checked = true;
         });
         var container = document.getElementById(id);
-        if (container && window.updateMultiSelectDisplay) {
-          window.updateMultiSelectDisplay(container);
-        }
+        if (container) updateMultiSelectDisplay(container);
       }
-      fillMultiSelect("npPosition", p.position);
-      fillMultiSelect("npGrade", p.grade);
-      fillMultiSelect("npSubject", p.subject);
-      fillMultiSelect("npTrainingSubject", p.trainingSubject);
-
-      // 学科（多选下拉）
+      fillMulti("npPosition", p.position);
+      fillMulti("npGrade", p.grade);
+      fillMulti("npSubject", p.subject);
+      fillMulti("npTrainingSubject", p.trainingSubject);
 
       // 培训地点（省+市联动）
       if (p.trainingLocation) {
         var parts = p.trainingLocation.split(" ");
-        if (parts.length === 2) {
+        if (parts.length >= 2) {
           var provSel = document.getElementById("npProvince");
           var citySel = document.getElementById("npCity");
           if (provSel) {
             provSel.value = parts[0];
-            // 触发 change 事件让城市下拉加载
-            var evt = new Event("change");
-            provSel.dispatchEvent(evt);
+            provSel.dispatchEvent(new Event("change"));
             if (citySel) {
-              // 需要等城市下拉渲染完成后再设值
-              setTimeout(function () {
-                citySel.value = parts[1];
-              }, 0);
+              setTimeout(function () { citySel.value = parts[1]; }, 50);
             }
           }
         }
@@ -1565,121 +1549,98 @@
       var hoursEl = document.getElementById("npCourseHours");
       if (hoursEl && p.courseCount) hoursEl.value = p.courseCount;
 
-      // 培训目标
+      // 培训目标 + 字符计数
       var objectiveEl = document.getElementById("npTrainingObjective");
       if (objectiveEl) objectiveEl.value = p.trainingObjective || "";
+      var countEl = document.getElementById("npObjectiveCount");
+      if (countEl) countEl.textContent = (p.trainingObjective || "").length;
 
       // 培训内容（富文本）
       var descEl = document.getElementById("npDescription");
       if (descEl && p.description) descEl.innerHTML = p.description;
 
-      // 产品图片（上传过的图片URL回显到预览）
-      if (p.images) {
-        var urls = p.images.split(/[、,\s]+/).filter(Boolean);
-        urls.forEach(function (url) {
-          // 外部URL直接加入手动输入；本地URL加入 uploadedUrls
-          var localVarName = "_editUploadedUrls";
-          window[localVarName] = window[localVarName] || [];
-          window[localVarName].push(url);
-        });
-        // 触发 renderPreviews — 需要访问 uploadedUrls 变量
-        // 因为 uploadedUrls 是 _after["#product-new"] 闭包内的变量，我们通过
-        // 手动设置 npImage 输入框的值来触发 renderPreviews
-        if (imageEl) {
-          imageEl.value = p.images;
-          // 触发 input 事件
-          var inputEvt = new Event("input");
-          imageEl.dispatchEvent(inputEvt);
-        }
+      // 产品图片预览回显
+      if (p.images && imageEl) {
+        imageEl.value = p.images;
+        imageEl.dispatchEvent(new Event("input"));
       }
     });
 
-    // ── 覆盖表单提交（PUT 而非 POST）──
-    var form = document.getElementById("newProductForm");
+    // 表单提交 — PUT 更新
     if (form) {
-      // 用 onsubmit 直接替换，覆盖 addEventListener 添加的监听器
       form.onsubmit = async function (e) {
         e.preventDefault();
 
-        // 自动生成产品编号（如有必要）
         var codeEl = document.getElementById("npProductCode");
         if (codeEl && !codeEl.value.trim()) {
           var now = new Date();
           var pad = function (n) { return n < 10 ? "0" + n : "" + n; };
-          codeEl.value = "cp" + now.getFullYear() +
-            pad(now.getMonth() + 1) + pad(now.getDate()) +
-            pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());
+          codeEl.value = "cp" + now.getFullYear() + pad(now.getMonth()+1) + pad(now.getDate()) + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());
         }
 
-        // 收集数据
-        var nameEl2 = document.getElementById("npName");
-        var name2 = nameEl2 ? nameEl2.value.trim() : "";
-        if (!name2) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请输入产品名称</div>'; return; }
+        var nameEl = document.getElementById("npName");
+        var name = nameEl ? nameEl.value.trim() : "";
+        if (!name) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请输入产品名称</div>'; return; }
 
-        var positionVal2 = getMultiSelectValues("npPosition");
-        if (!positionVal2) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请选择岗位</div>'; return; }
-        var gradeVal2 = getMultiSelectValues("npGrade");
-        if (!gradeVal2) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请选择学段</div>'; return; }
-        var subjectVal2 = getMultiSelectValues("npSubject");
-        if (!subjectVal2) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请选择学科</div>'; return; }
+        var positionVal = getMultiSelectValues("npPosition");
+        if (!positionVal) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请选择岗位</div>'; return; }
+        var gradeVal = getMultiSelectValues("npGrade");
+        if (!gradeVal) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请选择学段</div>'; return; }
+        var subjectVal = getMultiSelectValues("npSubject");
+        if (!subjectVal) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请选择学科</div>'; return; }
 
-        var provinceVal2 = document.getElementById("npProvince").value;
-        var cityVal2 = document.getElementById("npCity").value;
-        if (!provinceVal2) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请选择省份</div>'; return; }
-        if (!cityVal2) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请选择城市</div>'; return; }
-        var locationVal2 = provinceVal2 + " " + cityVal2;
+        var provinceVal = document.getElementById("npProvince").value;
+        var cityVal = document.getElementById("npCity").value;
+        if (!provinceVal) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请选择省份</div>'; return; }
+        if (!cityVal) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请选择城市</div>'; return; }
+        var locationVal = provinceVal + " " + cityVal;
 
-        var hoursVal2 = parseInt(document.getElementById("npCourseHours").value) || 0;
-        if (!hoursVal2 || hoursVal2 < 1) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请输入课程学时（至少1学时）</div>'; return; }
+        var hoursVal = parseInt(document.getElementById("npCourseHours").value) || 0;
+        if (!hoursVal || hoursVal < 1) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请输入课程学时</div>'; return; }
 
-        var topicVal2 = getMultiSelectValues("npTrainingSubject");
-        if (!topicVal2) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请选择课程主题</div>'; return; }
+        var topicVal = getMultiSelectValues("npTrainingSubject");
+        if (!topicVal) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请选择课程主题</div>'; return; }
 
-        var objectiveVal2 = document.getElementById("npTrainingObjective").value.trim();
-        if (!objectiveVal2) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请输入培训目标</div>'; return; }
+        var objectiveVal = document.getElementById("npTrainingObjective").value.trim();
+        if (!objectiveVal) { if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">请输入培训目标</div>'; return; }
 
-        var trainingTypeRadio2 = document.querySelector('input[name="npTrainingType"]:checked');
-        var trainingType2 = trainingTypeRadio2 ? trainingTypeRadio2.value : "";
-        var trainingMode2 = getCheckboxGroupValues("npTrainingMode");
+        var trainingTypeRadio = document.querySelector('input[name="npTrainingType"]:checked');
+        var trainingType = trainingTypeRadio ? trainingTypeRadio.value : "";
+        var trainingMode = getCheckboxGroupValues("npTrainingMode");
 
-        var allImgUrls = [];
-        var manualUrl2 = document.getElementById("npImage").value.trim();
-        if (manualUrl2) {
-          manualUrl2.split(/[、,\s]+/).filter(Boolean).forEach(function (u) { allImgUrls.push(u); });
-        }
+        var allImgUrls = (window._pf && window._pf.uploadedUrls || []).slice();
+        var manualUrl = document.getElementById("npImage").value.trim();
+        if (manualUrl) { manualUrl.split(/[、,\s]+/).filter(Boolean).forEach(function (u) { allImgUrls.push(u); }); }
 
-        var data2 = {
+        var data = {
           productCode: codeEl.value.trim(),
-          name: name2,
-          images: allImgUrls.join("、"),
-          trainingType: trainingType2,
-          trainingMode: trainingMode2,
-          trainingSubject: topicVal2,
-          trainingLocation: locationVal2,
-          trainingTarget: positionVal2,
-          grade: gradeVal2,
-          subject: subjectVal2,
-          position: positionVal2,
-          courseCount: hoursVal2,
-          status: "unpublished",
-          description: document.getElementById("npDescription").innerHTML.trim(),
-          trainingObjective: objectiveVal2
+          name: name, images: allImgUrls.join("、"),
+          trainingType: trainingType, trainingMode: trainingMode,
+          trainingSubject: topicVal, trainingLocation: locationVal,
+          trainingTarget: positionVal, grade: gradeVal,
+          subject: subjectVal, position: positionVal,
+          courseCount: hoursVal, description: document.getElementById("npDescription").innerHTML.trim(),
+          trainingObjective: objectiveVal
         };
 
-        if (btnSave) btnSave.disabled = true;
-        if (btnSave) btnSave.innerHTML = '<span class="spinner"></span> 更新中...';
+        if (btnSave) { btnSave.disabled = true; btnSave.innerHTML = '<span class="spinner"></span> 更新中...'; }
         try {
-          var resp = await api.updateProduct(editId, data2);
+          var resp = await api.updateProduct(editId, data);
           if (btnSave) { btnSave.disabled = false; btnSave.innerHTML = "💾 更新"; }
           if (resp.code === 200) {
-            if (msgEl) msgEl.innerHTML = '<div class="alert alert-success">' + (resp.message || "更新成功") + '，即将返回列表...</div>';
-            setTimeout(function () { navigate("#products"); render("#products"); }, 800);
+            if (msgEl) msgEl.innerHTML = '<div class="alert alert-success">' + (resp.message || "更新成功") + '，即将关闭...</div>';
+            // 通知主窗口刷新列表
+            localStorage.setItem('_productChanged', Date.now().toString());
+            if (window.opener && !window.opener.closed) {
+              window.opener.location.reload();
+            }
+            setTimeout(function () { window.close(); }, 800);
           } else {
             if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">' + (resp.message || "更新失败") + '</div>';
           }
         } catch (err) {
           if (btnSave) { btnSave.disabled = false; btnSave.innerHTML = "💾 更新"; }
-          if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">网络请求失败，请确认服务已启动</div>';
+          if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">网络请求失败</div>';
         }
       };
     }
@@ -1841,6 +1802,28 @@
     });
     return selected.join("、");
   }
+
+  /* ── 跨窗口数据变更监听（编辑窗口关闭后自动刷新列表）── */
+  window.addEventListener("storage", function (e) {
+    if (e.key === "_productChanged") {
+      var currentHash = window.location.hash;
+      // 如果在产品列表页或首页，重新加载列表数据
+      if (currentHash === "#products" || !currentHash || currentHash === "#dashboard") {
+        api.products(getFilterParams()).then(function (r) {
+          if (r.code === 200) {
+            pageState.products.all = r.data.products || [];
+            pageState.products.filtered = pageState.products.all.slice();
+            var totalEl = document.getElementById("productTotal");
+            if (totalEl) totalEl.textContent = '共 ' + pageState.products.all.length + ' 条';
+            var tbody = document.getElementById("productTbody");
+            if (tbody) renderProductTable();
+            var countEl = document.getElementById("productCount");
+            if (countEl) countEl.textContent = pageState.products.all.length;
+          }
+        });
+      }
+    }
+  });
 
   /* ═══════════════════════════════════════════════════════
    *  启动

@@ -322,7 +322,12 @@ public class MenuController {
             }
             String trainTarget = filter.getTrainTarget();
             if (trainTarget != null && !trainTarget.isEmpty()) {
-                predicates.add(cb.like(cb.lower(root.get("trainingTarget")), "%" + trainTarget.toLowerCase() + "%"));
+                String[] targets = trainTarget.split("\u3001");
+                List<Predicate> orPredicates = new ArrayList<>();
+                for (String t : targets) {
+                    orPredicates.add(cb.like(cb.lower(root.get("trainingTarget")), "%" + t.trim().toLowerCase() + "%"));
+                }
+                predicates.add(cb.or(orPredicates.toArray(new Predicate[0])));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));

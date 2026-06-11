@@ -95,7 +95,7 @@
       if (logoutBtn) logoutBtn.onclick = function (e) { e.preventDefault(); api.logout(); };
     }
 
-    var pageTitle = { "#dashboard": "数据看板", "#weather": "天气管理", "#products": "课程管理", "#product-new": "新增课程", "#product-edit": "编辑课程" };
+    var pageTitle = { "#dashboard": "数据看板", "#weather": "天气管理", "#products": "产品库", "#product-new": "新增产品", "#product-edit": "编辑产品" };
     if (titleEl) titleEl.textContent = pageTitle[hash] || "百川教育";
     var sidebarUser = document.getElementById("sidebarUser");
     var sidebarAvatar = document.getElementById("sidebarAvatar");
@@ -143,7 +143,7 @@
     var menus = [
       { id: "dashboard", icon: "📊", label: "数据看板", hash: "#dashboard" },
       { id: "weather", icon: "🌤", label: "天气查询", hash: "#weather" },
-      { id: "products", icon: "📚", label: "课程管理", hash: "#products" }
+      { id: "products", icon: "📚", label: "产品库", hash: "#products" }
     ];
 
     nav.innerHTML = '<div class="menu-label">导航菜单</div>' + menus.map(function (m) {
@@ -577,7 +577,17 @@
           '<div class="form-group" style="flex:0.7;min-width:130px;margin:0;"><label>适用学段</label><select id="filterGrade"><option value="">请选择</option><option value="幼儿园">幼儿园</option><option value="小学">小学</option><option value="初中">初中</option><option value="高中">高中</option></select></div>' +
           '<div class="form-group" style="flex:0.7;min-width:130px;margin:0;"><label>适用学科</label><select id="filterSubject"><option value="">请选择</option><option value="语文">语文</option><option value="数学">数学</option><option value="英语">英语</option><option value="信息技术">信息技术</option><option value="综合">综合</option></select></div>' +
           '<div class="form-group" style="flex:0.7;min-width:130px;margin:0;"><label>适用岗位</label><select id="filterPosition"><option value="">请选择</option><option value="校园长">校园长</option><option value="中层干部">中层干部</option><option value="教师">教师</option><option value="班主任">班主任</option></select></div>' +
-          '<div class="form-group" style="flex:1;min-width:160px;margin:0;"><label>培训对象</label><input type="text" id="filterTrainTarget" placeholder="请输入培训对象"></div>' +
+          '<div class="form-group" style="flex:1;min-width:200px;margin:0;"><label>培训对象</label><div id="filterTrainTargetGroup" class="checkbox-group" style="padding-top:4px;gap:4px;">' +
+          '<label class="checkbox-option" style="padding:4px 10px;font-size:12px;margin:0;"><input type="checkbox" value="校园长"><span>校园长</span></label>' +
+          '<label class="checkbox-option" style="padding:4px 10px;font-size:12px;margin:0;"><input type="checkbox" value="中层干部"><span>中层干部</span></label>' +
+          '<label class="checkbox-option" style="padding:4px 10px;font-size:12px;margin:0;"><input type="checkbox" value="教师"><span>教师</span></label>' +
+          '<label class="checkbox-option" style="padding:4px 10px;font-size:12px;margin:0;"><input type="checkbox" value="班主任"><span>班主任</span></label>' +
+          '</div></div>' +
+          '<label class="checkbox-option" style="padding:4px 10px;font-size:12px;margin:0;"><input type="checkbox" value="???"><span>???</span></label>' +
+          '<label class="checkbox-option" style="padding:4px 10px;font-size:12px;margin:0;"><input type="checkbox" value="????"><span>????</span></label>' +
+          '<label class="checkbox-option" style="padding:4px 10px;font-size:12px;margin:0;"><input type="checkbox" value="??"><span>??</span></label>' +
+          '<label class="checkbox-option" style="padding:4px 10px;font-size:12px;margin:0;"><input type="checkbox" value="???"><span>???</span></label>' +
+          '</div></div>' +
         '</div>' +
       '</div>' +
       // 工具栏
@@ -625,7 +635,7 @@
       document.getElementById("filterGrade").value = "";
       document.getElementById("filterSubject").value = "";
       document.getElementById("filterPosition").value = "";
-      document.getElementById("filterTrainTarget").value = "";
+      document.querySelectorAll('#filterTrainTargetGroup input[type="checkbox"]').forEach(function(cb) { cb.checked = false; });
       // 重新加载全部数据
       var tbody = document.getElementById("productTbody");
       tbody.innerHTML = '<tr><td colspan="8"><div class="empty"><div class="spinner"></div><p>加载中...</p></div></td></tr>';
@@ -734,8 +744,9 @@
     if (subject) params.subject = subject;
     var position = document.getElementById("filterPosition").value;
     if (position) params.position = position;
-    var trainTarget = document.getElementById("filterTrainTarget").value.trim();
-    if (trainTarget) params.trainTarget = trainTarget;
+    var trainTarget = [];
+    document.querySelectorAll('#filterTrainTargetGroup input[type="checkbox"]:checked').forEach(function(cb) { trainTarget.push(cb.value); });
+    if (trainTarget.length > 0) params.trainTarget = trainTarget.join("\u3001");
     return params;
   }
 

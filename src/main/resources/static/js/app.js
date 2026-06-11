@@ -1,5 +1,5 @@
 /**
- * 管理后台 SPA — 侧边栏导航 + 多页面
+ * 百川教育 SPA — 侧边栏导航 + 多页面
  */
 (function () {
   "use strict";
@@ -90,13 +90,24 @@
     // 已登录 → 显示后台布局
     document.body.classList.remove("auth-page");
     if (topRight) {
-      topRight.innerHTML = '<span>👤 ' + username + '</span><a id="btnLogout" href="#">退出登录</a>';
+      topRight.innerHTML = '<div class="user-welcome"><div class="user-avatar-small">' + username.charAt(0).toUpperCase() + '</div><span>👤 ' + username + '</span></div><a id="btnLogout" href="#">退出登录</a>';
       var logoutBtn = document.getElementById("btnLogout");
       if (logoutBtn) logoutBtn.onclick = function (e) { e.preventDefault(); api.logout(); };
     }
 
-    var pageTitle = { "#dashboard": "首页", "#weather": "天气管理", "#products": "产品管理", "#product-new": "新增产品", "#product-edit": "编辑产品" };
-    if (titleEl) titleEl.textContent = pageTitle[hash] || "管理后台";
+    var pageTitle = { "#dashboard": "数据看板", "#weather": "天气管理", "#products": "课程管理", "#product-new": "新增课程", "#product-edit": "编辑课程" };
+    if (titleEl) titleEl.textContent = pageTitle[hash] || "百川教育";
+    var sidebarUser = document.getElementById("sidebarUser");
+    var sidebarAvatar = document.getElementById("sidebarAvatar");
+    var sidebarUserName = document.getElementById("sidebarUserName");
+    if (sidebarUser) sidebarUser.style.display = "flex";
+    if (sidebarAvatar) sidebarAvatar.textContent = username ? username.charAt(0).toUpperCase() : "?";
+    if (sidebarUserName) sidebarUserName.textContent = username;
+    var sidebarLogoutBtn = document.getElementById("btnSidebarLogout");
+    if (sidebarLogoutBtn) sidebarLogoutBtn.onclick = function (e) {
+      e.preventDefault();
+      api.logout();
+    };
 
     // 渲染侧边栏
     buildSidebar(hash);
@@ -130,12 +141,12 @@
     var nav = document.getElementById("sidebarNav");
     if (!nav) return;
     var menus = [
-      { id: "dashboard", icon: "🏠", label: "首页", hash: "#dashboard" },
-      { id: "weather", icon: "🌤️", label: "天气管理", hash: "#weather" },
-      { id: "products", icon: "📦", label: "产品管理", hash: "#products" }
+      { id: "dashboard", icon: "📊", label: "数据看板", hash: "#dashboard" },
+      { id: "weather", icon: "🌤", label: "天气查询", hash: "#weather" },
+      { id: "products", icon: "📚", label: "课程管理", hash: "#products" }
     ];
 
-    nav.innerHTML = menus.map(function (m) {
+    nav.innerHTML = '<div class="menu-label">导航菜单</div>' + menus.map(function (m) {
       return '<div class="menu-item" data-hash="' + m.hash + '">' +
         '<span class="menu-icon">' + m.icon + '</span>' +
         '<span class="menu-text">' + m.label + '</span></div>';
@@ -222,7 +233,7 @@
    * ═══════════════════════════════════════════════════════ */
   routes["#login"] = function () {
     return '<div class="auth-center"><div class="auth-card card"><div class="card-body">' +
-      '<h2>🔐 管理后台登录</h2>' +
+      '<div class="auth-header"><div class="auth-logo">📚</div><h2>教育管理平台</h2><p>登录您的账号以继续</p></div>' +
       '<form id="loginForm"><div class="form-group">' +
       '<label>账号 <span style="font-weight:400;color:#9ca3af;font-size:12px;">（8位，字母+数字）</span></label>' +
       '<div><div class="input-wrap">' +
@@ -299,7 +310,7 @@
    * ═══════════════════════════════════════════════════════ */
   routes["#register"] = function () {
     return '<div class="auth-center"><div class="auth-card card"><div class="card-body">' +
-      '<h2>📝 用户注册</h2>' +
+      '<div class="auth-header"><div class="auth-logo">📚</div><h2>创建新账号</h2><p>注册成为教育管理平台用户</p></div>' +
       '<form id="regForm">' +
       '<div class="form-group"><label>账号 <span style="font-weight:400;color:#9ca3af;font-size:12px;">（8位，字母+数字）</span></label>' +
       '<div><div class="input-wrap"><input id="regUser" type="text" placeholder="字母+数字组合，共8位" maxlength="8" autocomplete="off" autofocus>' +
@@ -393,6 +404,11 @@
    *  首页（仪表盘）
    * ═══════════════════════════════════════════════════════ */
   routes["#dashboard"] = function () {
+    var username = localStorage.getItem("username") || "用户";
+    var today = new Date();
+    var hour = today.getHours();
+    var greeting = hour < 6 ? "夜深了" : hour < 9 ? "早上好" : hour < 12 ? "上午好" : hour < 14 ? "中午好" : hour < 18 ? "下午好" : "晚上好";
+    var banner = '<div class="welcome-banner"><div class="banner-text"><h1>' + greeting + '，' + username + ' 👋</h1><p>欢迎回来，以下是教育管理平台的最新数据概览</p></div><div class="banner-action"><span style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.15);padding:8px 18px;border-radius:8px;font-size:13px;">📅 ' + today.toLocaleDateString("zh-CN", {year:"numeric",month:"long",day:"numeric",weekday:"long"}) + '</span></div></div>';
     return '<div>' +
       '<div class="stats-row">' +
         '<div class="stat-card"><div class="stat-icon">📦</div><div class="stat-info"><div class="stat-value" id="productCount">-</div><div class="stat-label">产品总数</div></div></div>' +
